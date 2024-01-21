@@ -1,0 +1,6 @@
+*.swp
+.*.swp
+.*.*.swp
+traceroute
+testprog
+testprog.c
