@@ -127,7 +127,7 @@ int main(int argc, char **argv){
     recIp = (struct ip *)ipBytes;
 
     struct icmp *recIcmp;
-    char * icmpBytes = malloc(2);// 1 bytes at first to determine the entire length by the type and code of the icmp packet. 
+    char * icmpBytes = malloc(2);// 2 bytes at first to determine the entire length by the type and code of the icmp packet. 
     recIcmp = (struct icmp *)icmpBytes;
 
     int sockfd;
@@ -203,10 +203,10 @@ int main(int argc, char **argv){
 
 
         struct ip *recIpP = memcpy(recIp, income_packet, IP4_HDRLEN);
-        struct icmp *recIcmpP = memcpy(recIcmp, (income_packet + IP4_HDRLEN), 2); // 1 byte at first
+        struct icmp *recIcmpP = memcpy(recIcmp, (income_packet + IP4_HDRLEN), 2); // 2 byte at first
  
         if (recIcmpP->icmp_type == 11){
-            size_t added_bytes = 6; //complement to -> 8 - 1;
+            size_t added_bytes = 6; //complement to -> 8 - 2;
             recIcmp = realloc(icmpBytes,added_bytes);//reallocate icmpBytes with the necessary space for icmp_code 11
             memcpy((recIcmp +2), (income_packet+IP4_HDRLEN + 2), added_bytes);// copy rest of the data
 
