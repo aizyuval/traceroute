@@ -1,7 +1,3 @@
-// what's stopping me from impersonating someone else with sending an ip packet including his ip instead of mine?
-// what exactly filters traffic into that sockfd? does the sendto also sends the sockfd details?(so they will send back to the same sockfd)
-// ONLY WORKS WITH WIRELESS WIFI INTERFACES! - check against cable interface
-// validate checksum to avoid curropted packets;
 #include <netinet/ip_icmp.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
