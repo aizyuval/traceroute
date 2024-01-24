@@ -1,5 +1,4 @@
 // what's stopping me from impersonating someone else with sending an ip packet including his ip instead of mine?
-// how often does while evaluate the condition?
 // what exactly filters traffic into that sockfd? does the sendto also sends the sockfd details?(so they will send back to the same sockfd)
 // ONLY WORKS WITH WIRELESS WIFI INTERFACES! - check against cable interface
 // validate checksum to avoid curropted packets;
@@ -29,8 +28,19 @@ void error(const char *msg)
 }
 uint16_t checksum (uint16_t *, int);//prototype
 int main(int argc, char **argv){
-    // do - send and recieve packet with ttl++, get address, get packet types and data.
-    // while notRecEcho 
+
+    struct addrstring{ // struct of linked string list
+        char string[INET_ADDRSTRLEN+1]; 
+        char ttl;
+        struct addrstring *string_next;
+    };
+
+    size_t addrstring_size = sizeof(struct addrstring);
+    struct addrstring *adds, *addresses; // use addresses for filling the list. reserve adds for later iteration on that linked list.
+    // allocate space for the struct, and point the reserved struct pointer to it.
+    addresses = malloc(addrstring_size);
+    adds = addresses;
+                     
     if(argv[1]==NULL){
         printf("usage is: sudo %s google.com\n ", argv[0]);
         printf("it's sudo + execution + domain or ipv4 \n");
@@ -38,13 +48,7 @@ int main(int argc, char **argv){
     }
     int notRecEcho = 1;
     short iteration = 0;
-
-    char **strings = malloc(sizeof(char *));//every element is a pointer to string 
-    char buffer[INET_ADDRSTRLEN+1];
-            char *ptr = malloc(INET_ADDRSTRLEN+1);
-            char *ptrPadd = ptr;
-            memcpy(strings[0], ptrPadd, sizeof(char*));// to first string, copy allocated space address'
-                                             // get src address 
+                                               // get src address 
     struct pollfd fds[1];
     int timeout = 10000;
     struct ifaddrs *myaddrs, *ifa;
@@ -107,8 +111,8 @@ int main(int argc, char **argv){
     packet_ip->ip_p=1;
     packet_ip->ip_src = *src_in_addr; // in_addr
     packet_ip->ip_dst = destaddr_in->sin_addr;// in_addr
-                                                 //packet_icmp should point to sent_packet memory space
-        packet_icmp = (struct icmp *)(sent_packet+IP4_HDRLEN);
+                                              //packet_icmp should point to sent_packet memory space
+    packet_icmp = (struct icmp *)(sent_packet+IP4_HDRLEN);
 
     char income_packet[packetLen];
 
@@ -121,17 +125,13 @@ int main(int argc, char **argv){
     memcpy(packet_icmp->icmp_data, mesg, strlen(mesg));
 
     // define structures and assign space for icmp and ip splitted data
-    struct ip *recIp, *recOrgIp;
+    struct ip *recIp;
     char ipBytes[IP4_HDRLEN]; 
     recIp = (struct ip *)ipBytes;
-    char OrgipBytes[IP4_HDRLEN];
-    recOrgIp = (struct ip *)OrgipBytes;
 
-    struct icmp *recIcmp, *recOrgIcmp;
-    char OrgicmpBytes[ICMP_HDRLEN];
+    struct icmp *recIcmp;
     char * icmpBytes = malloc(2);// 2 bytes at first to determine the entire length by the type and code of the icmp packet. 
     recIcmp = (struct icmp *)icmpBytes;
-    recOrgIcmp = (struct icmp *)OrgicmpBytes;
 
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP); // initialize ipv4 raw socket of icmp protocol 
     fds[0].fd = sockfd;
@@ -139,14 +139,14 @@ int main(int argc, char **argv){
     if(sockfd<0){
         error("error in socket opening");
     }
-  // Set flag so socket expects us to provide IPv4 header.
+    // Set flag so socket expects us to provide IPv4 header.
     const int on = 1;
-  if (setsockopt (sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof (on)) < 0) {
-    error ("setsockopt() failed to set IP_HDRINCL ");
-  }
+    if (setsockopt (sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof (on)) < 0) {
+        error ("setsockopt() failed to set IP_HDRINCL ");
+    }
 
-  // Bind socket to interface index.
-                                                     
+    // Bind socket to interface index.
+
     // send the packet to the address
 
     // -> start do while
@@ -178,31 +178,26 @@ int main(int argc, char **argv){
 
         int num_events = poll(fds, 1, timeout);
         if(num_events == 0){
-            printf("timed out on iteration %hu ",iteration);
             // add no address to addrlist
-            strcpy(buffer,"*");
-            strcpy(strings[iteration-1],buffer);
-            char * newstr = realloc(strings, sizeof(char*));
-            char * p = malloc(INET_ADDRSTRLEN+1);
-            char * pt = p;
-            memcpy(newstr, pt, sizeof(char*)); // to new string space, copy allocated space address
-            
+            strcpy(addresses->string,"*");
+            addresses->ttl = (char)iteration;
+            addresses->string_next = malloc(addrstring_size);
+            addresses = addresses->string_next; // 
+
             continue;
         }else{// 
-            //can recv
+              //can recv
             int pollin_happened = fds[0].revents & POLLIN;
             if(pollin_happened){
-            //recv from
-            bytesRecieved = recvfrom(sockfd, income_packet, packetLen, 0, (struct sockaddr*)&their_addr, &addr_size);
+                //recv from
+                bytesRecieved = recvfrom(sockfd, income_packet, packetLen, 0, (struct sockaddr*)&their_addr, &addr_size);
             }else{
                 printf("unexpected event on iteration; %hu", iteration);
-            // add no address to addrlist
-            strcpy(buffer,"*");
-            strcpy(strings[iteration-1],buffer);
-            char * newstr = realloc(strings, sizeof(char*));
-            char * p = malloc(INET_ADDRSTRLEN+1);
-            char * pt = p;
-            memcpy(newstr, pt, sizeof(char*)); // to new string space, copy allocated space address
+                // add no address to addrlist
+            strcpy(addresses->string,"*");
+            addresses->ttl = (char)iteration;
+            addresses->string_next = malloc(addrstring_size);
+            addresses = addresses->string_next; // 
                 continue;
             }
         }
@@ -221,41 +216,42 @@ int main(int argc, char **argv){
         if (recIcmpP->icmp_type == 11){// by the way, determine packet nature.
             size_t added_bytes = 6; //complement to 8 //ICMP_HDRLEN + IP4_HDRLEN + 8 - 2;
             recIcmp = realloc(icmpBytes,added_bytes);//reallocate icmpBytes with the necessary space for icmp_code 11
-                memcpy(recIcmp, (income_packet+IP4_HDRLEN + 2), added_bytes); // icmp_type 11 includes: icmphdr, ip hdr, 8 bytes extra. minus already existing 2 bytes of space
-            struct ip *recOrgIpP = memcpy (recOrgIp, (income_packet+IP4_HDRLEN + ICMP_HDRLEN), IP4_HDRLEN); // copying original ip hdr to the ip struct //NOT ERROR but, i have no need for ipP. just use ip.
-                                                                                                        struct icmp *recOrgIcmpP = memcpy(recOrgIcmp, (income_packet+IP4_HDRLEN + ICMP_HDRLEN + IP4_HDRLEN), ICMP_HDRLEN); 
-            if(recOrgIpP->ip_src.s_addr == packet_ip->ip_src.s_addr  && recOrgIpP->ip_dst.s_addr == packet_ip->ip_dst.s_addr  && recOrgIcmpP->icmp_type == packet_icmp->icmp_type && recOrgIcmpP->icmp_code == packet_icmp->icmp_code){
-
-                    notRecEcho = 1;
-                if(recIcmpP->icmp_code ==0){
+            memcpy((recIcmp +2), (income_packet+IP4_HDRLEN + 2), added_bytes); // icmp_type 11 includes: icmphdr, ip hdr, 8 bytes extra. minus already existing 2 bytes of space
+                notRecEcho = 1;
+                if(recIcmpP->icmp_code == 0){
 
 
-                    inet_ntop(AF_INET, &(recIpP->ip_src.s_addr), buffer, INET_ADDRSTRLEN);
-                    strcpy(strings[iteration-1], buffer);
-                    char * newstr = realloc(strings, sizeof(char *));
-                    char * p =malloc(INET_ADDRSTRLEN+1);
-                    char *pt = p;
-                    memcpy(newstr,pt,sizeof(char*));
-                }else{//code 1
+                    if(!inet_ntop(AF_INET, &recIpP->ip_src, addresses->string, INET_ADDRSTRLEN+1)){
+                        error("inet_ntop failed");
+                    }
+                    addresses->ttl = (char)iteration;
+                    addresses->string_next = malloc(addrstring_size);
+                    addresses = addresses->string_next;
+                }else if(recIcmpP->icmp_code==1){//code 1
                     printf("fragment reassembly time exceeded. try again");
                     iteration -= 1;
                     //ttl stay the same!
-                }
-            } 
+                    exit(0);
+                }else {
+                    printf("problems with recv icmp code..");
+                    exit(0);
+                } 
             // DO I NEED TO UPDATE recIcmP?
         }else if(recIcmpP->icmp_type == 0 &&recIpP->ip_src.s_addr == packet_ip->ip_dst.s_addr){
-                    inet_ntop(AF_INET, &(recIpP->ip_src.s_addr), buffer, INET_ADDRSTRLEN);
-                    strcpy(strings[iteration-1], buffer);
-            printf("\nhost is up. | Sequence: %d| Id: %hu\n", packet_icmp->icmp_seq,packet_icmp->icmp_id);
+            if(!inet_ntop(AF_INET, &recIpP->ip_src, addresses->string, INET_ADDRSTRLEN+1)){
+                error("inet_ntop failed");
+            }
+                    addresses->ttl = (char)iteration;
+                    addresses->string_next = malloc(addrstring_size);
+                    addresses = addresses->string_next; // 
             notRecEcho = 0;
         }
 
     }while(notRecEcho);//not recv'd echo
-                      
+
     close(sockfd);
-    printf("amount of hops: %d\n", packet_ip->ip_ttl);
-    for(uint8_t i =0; i<packet_ip->ip_ttl; i++){
-        printf("%d.%s -> ",i+1, strings[i]); 
+    for(adds = adds; adds->string_next!=NULL; adds=adds->string_next){
+        printf("%d. %s\n",adds->ttl, adds->string);
     }
 
     return 0;
